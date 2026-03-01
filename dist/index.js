@@ -3,7 +3,8 @@ import mongoose from "mongoose";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
-import { UserModel } from "./db.js";
+import { UserModel, ContentModel } from "./db.js";
+import { auth } from "./middleware.js";
 import * as dotenv from 'dotenv';
 dotenv.config();
 const PORT = process.env.PORT || 3000;
@@ -30,12 +31,12 @@ app.post("/api/v1/signup", async (req, res) => {
     const { email, username, password } = req.body;
     const user = await UserModel.findOne({ email });
     if (user) {
-        res.json({ message: "User already exists" });
+        return res.json({ message: "User already exists" });
     }
     else {
         const hashedPass = await bcrypt.hash(password, 5);
         await UserModel.create({ email, username, password: hashedPass });
-        res.json({ message: "User addded" });
+        return res.json({ message: "User addded" });
     }
 });
 app.post("/api/v1/login", async (req, res) => {
@@ -45,26 +46,39 @@ app.post("/api/v1/login", async (req, res) => {
     const { email, username, password } = req.body;
     const user = await UserModel.findOne({ email });
     if (!user) {
-        res.status(401).json({ message: "User not found. You need to signin first" });
+        return res.status(401).json({ message: "User not found. You need to signin first" });
     }
     else {
         const result = await bcrypt.compare(password, user.password);
         if (result) {
-            const token = jwt.sign({ email }, JWT_SECRET);
+            const token = jwt.sign({ userId: user._id }, JWT_SECRET);
             res.json({ token });
         }
         else {
-            res.json({ message: "Incorrect Password" });
+            return res.json({ message: "Incorrect Password" });
         }
     }
 });
-app.post("/api/v1/content", (req, res) => {
+app.post("/api/v1/content", auth, async (req, res) => {
+    const { title, link, tag } = req.body;
+    await ContentModel.create({
+        title,
+        link,
+        //@ts-ignore
+        userId: req.user.userId,
+        tags: tag || []
+    });
+    return res.json({ message: "Content added" });
 });
-app.get("/api/v1/content", (req, res) => {
+app.get("/api/v1/content", auth, async (req, res) => {
+    // @ts-ignore
+    const userId = req.user.userId;
+    const content = await ContentModel.find({ userId }).populate("userId", "username");
+    return res.json(content);
 });
-app.delete("/api/v1/content", (req, res) => {
+app.delete("/api/v1/content", auth, (req, res) => {
 });
-app.post("/api/v1/brain/share", (req, res) => {
+app.post("/api/v1/brain/share", auth, (req, res) => {
 });
 app.get("/api/v1/brain/:shareLink", (req, res) => {
 });

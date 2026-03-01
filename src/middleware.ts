@@ -5,14 +5,18 @@ dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET!;
 
 export const auth = (req:Request,res:Response,next:NextFunction)=>{
-    const {token} = req.body;
+    const token = req.headers.authorization;
     if(token){
-        jwt.verify(token,JWT_SECRET,(err:any,data:any)=>{
-            if(err) res.json({message:"You are not logged in"});
-            else{
-                (req as any).user=data;
-                next();
-            }
-        })
+        const decoded = jwt.verify(token,JWT_SECRET);
+        if(decoded){
+            //@ts-ignore
+            req.user = decoded;
+            console.log(decoded);
+            next();
+        }else{
+            res.json({message:"Invalid Token"});
+        }
+    }else{
+        res.json({message:"You are not logged in"});
     }
 }
